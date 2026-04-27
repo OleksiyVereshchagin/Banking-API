@@ -40,103 +40,119 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.refreshTokenRepository = refreshTokenRepository;
     }
+    
 
-    public AuthResponse registration(RegisterRequest request){
+    /**
+     * Registers a new user based on the provided registration details.
+     *
+     * @param request The registration request containing user details.
+     * @return An authentication response containing a generated token for the newly registered user.
+     * @throws ResponseStatusException if a user with the given login already exists.
+     */
+    public AuthResponse registration(RegisterRequest request) {
         String login = request.login();
 
-        boolean exists;
+        if (isUserExists(login)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "User with login " + login + " already exists");
+        }
 
-        if (login.contains("@")){
-            exists = userRepository.existsUserByEmailIgnoreCase(login);
+        User user = createNewUser(request);
+        userRepository.save(user);
+
+        return new AuthResponse(jwtService.generateToken(user));
+    }
+
+
+    /**
+     * Authenticates a user based on the provided credentials and generates an access token 
+     * and a refresh token for the session.
+     *
+     * @param request the {@code LoginRequest} containing the user's login credentials,
+     *                including the login (username or email) and password.
+     * @return an {@code AuthLoginResponse} containing the access token and refresh token
+     *         for the authenticated user.
+     */
+    public AuthLoginResponse login(LoginRequest request) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.login(), request.password())
+        );
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+        
+        // Очищення старих сесій та примусовий flush для уникнення порушення unique constraint
+        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRepository.flush();
+
+        RefreshToken refreshToken = createRefreshToken(user);
+        refreshTokenRepository.save(refreshToken);
+
+        String accessToken = jwtService.generateToken(user);
+        return new AuthLoginResponse(accessToken, refreshToken.getToken());
+    }
+    
+    /**
+     * Refreshes the access token based on a valid refresh token.
+     *
+     * @param requestToken the refresh token provided by the client
+     * @return an {@link AuthResponse} containing the new access token
+     * @throws ResponseStatusException if the refresh token is invalid, expired, or not found in the database
+     */
+    public AuthResponse refreshToken(String requestToken) {
+        Optional<RefreshToken> tokenOptional = refreshTokenRepository.findByToken(requestToken);
+
+        if (tokenOptional.isPresent()) {
+            RefreshToken token = tokenOptional.get();
+            verifyExpiration(token);
+
+            User user = token.getUser();
+            String accessToken = jwtService.generateToken(user);
+
+            return new AuthResponse(accessToken);
         } else {
-            exists = userRepository.existsUserByPhoneNumber(login);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Refresh token is not in database");
         }
+    }
 
-        if (exists) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "User with login" + login + " already exists");
+    // Helper Methods 
 
+    private boolean isUserExists(String login) {
+        if (login.contains("@")) {
+            return userRepository.existsUserByEmailIgnoreCase(login);
         }
+        return userRepository.existsUserByPhoneNumber(login);
+    }
 
+    private User createNewUser(RegisterRequest request) {
         User user = new User();
-
         if (request.login().contains("@")) {
             user.setEmail(request.login());
         } else {
             user.setPhoneNumber(request.login());
         }
 
-        String encodedPassword = passwordEncoder.encode(request.password());
-
-        user.setPassword(encodedPassword);
+        user.setPassword(passwordEncoder.encode(request.password()));
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setMiddleName(request.middleName());
         user.setDateOfBirth(request.dateOfBirth());
         user.setRole(UserRole.USER);
-
-        userRepository.save(user);
-        String token = jwtService.generateToken(user);
-
-        return new AuthResponse(token);
+        return user;
     }
 
-    public AuthLoginResponse login(LoginRequest request) {
-        // 1. Автентифікація користувача через Spring Security
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.login(),
-                        request.password()
-                )
-        );
-
-        // 2. Отримання об'єкта користувача з Principal
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = userDetails.getUser();
-
-        // 3. Робота з Refresh Token
-        // Перед створенням нового, видаляємо старий токен цього користувача (одна сесія)
-        refreshTokenRepository.deleteByUser(user);
-        refreshTokenRepository.flush();
-
+    private RefreshToken createRefreshToken(User user) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
-        refreshToken.setToken(UUID.randomUUID().toString()); // Генеруємо унікальний ідентифікатор
-        refreshToken.setExpiryDate(Instant.now().plus(5, ChronoUnit.DAYS)); // Термін дії 5 днів
-
-        refreshTokenRepository.save(refreshToken);
-
-        // 4. Генерація короткострокового Access Token (JWT)
-        String accessToken = jwtService.generateToken(user);
-
-        // 5. Повертаємо обидва токени клієнту
-        return new AuthLoginResponse(accessToken, refreshToken.getToken());
+        refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setExpiryDate(Instant.now().plus(5, ChronoUnit.DAYS));
+        return refreshToken;
     }
 
-    public AuthResponse refreshToken(String requestToken) {
-        Optional<RefreshToken> tokenOptional = refreshTokenRepository.findByToken(requestToken);
-
-        if (tokenOptional.isPresent()) {
-            RefreshToken token = tokenOptional.get();
-
-            verifyExpiration(token);
-            User user = token.getUser();
-            String accessToken = jwtService.generateToken(user);
-
-            return new AuthResponse(accessToken);
-        } else {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Refresh token is not in database!");
-        }
-    }
-
-    private RefreshToken verifyExpiration(RefreshToken token) {
+    private void verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(token); // Видаляємо прострочений
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Refresh token was expired. Please make a new signin request"
-            );
+            refreshTokenRepository.delete(token);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Refresh token expired. Please sign in again");
         }
-        return token;
     }
 
 }
