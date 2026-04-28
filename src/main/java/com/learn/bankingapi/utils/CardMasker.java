@@ -2,6 +2,9 @@ package com.learn.bankingapi.utils;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Utility for masking sensitive card information for display purposes.
+ */
 @Component
 public class CardMasker {
 

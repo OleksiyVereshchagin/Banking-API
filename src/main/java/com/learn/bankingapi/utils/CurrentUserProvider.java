@@ -8,6 +8,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Helper component for retrieving the currently authenticated user from the Security Context.
+ */
 @Component
 public class CurrentUserProvider {
     public User getCurrentUser() {

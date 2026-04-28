@@ -5,7 +5,12 @@ import org.springframework.stereotype.Component;
 import java.math.BigInteger;
 import java.util.concurrent.ThreadLocalRandom;
 
-
+/**
+ * Utility class for generating unique IBAN (International Bank Account Number) strings.
+ * Follows the Ukrainian IBAN format (UA + 2 check digits + 6 digits MFO + 19 digits account number).
+ *
+ * Algorithm: ISO 7064 (MOD 97-10) for check digit calculation.
+ */
 @Component
 public class IBANGenerator {
 
@@ -35,24 +40,3 @@ public class IBANGenerator {
         return result.toString();
     }
 }
-//@Component
-//public class IBANGenerator {
-//    private static final String COUNTRY_CODE_DIGITS = "3010";
-//    private static final String MFO = "300101";
-//    private static final String ACCOUNT_TYPE = "2620";
-//    private static final BigInteger MOD_97 = new BigInteger("97");
-//
-//    public String generate(Long userId) {
-//        String accountNumber = String.format("%s%015d", ACCOUNT_TYPE, userId);
-//
-//        String checkString = MFO + accountNumber + COUNTRY_CODE_DIGITS + "00";
-//
-//        BigInteger bigInt = new BigInteger(checkString);
-//        int remainder = bigInt.remainder(MOD_97).intValue();
-//        int controlDigits = 98 - remainder;
-//
-//        String formattedControlDigits = String.format("%02d", controlDigits);
-//
-//        return "UA" + formattedControlDigits + MFO + accountNumber;
-//    }
-//}

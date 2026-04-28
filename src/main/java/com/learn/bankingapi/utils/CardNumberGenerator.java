@@ -3,6 +3,11 @@ package com.learn.bankingapi.utils;
 import org.springframework.stereotype.Component;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Utility class for generating valid credit card numbers.
+ *
+ * Algorithm: Luhn algorithm (MOD 10) for check digit calculation.
+ */
 @Component
 public class CardNumberGenerator {
 
@@ -28,7 +33,6 @@ public class CardNumberGenerator {
         int sum = 0;
         boolean shouldDouble = true;
 
-        // 🔥 справа наліво
         for (int i = number.length() - 1; i >= 0; i--) {
             int digit = number.charAt(i) - '0';
 

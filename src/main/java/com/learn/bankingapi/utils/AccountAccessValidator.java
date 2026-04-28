@@ -8,7 +8,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class AccountAccessValidator {
-
     public void validateCanOperate(Account account) {
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not active");
