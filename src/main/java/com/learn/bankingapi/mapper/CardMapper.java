@@ -23,12 +23,4 @@ public class CardMapper {
                 card.isDefault()
         );
     }
-
-//    public CardsContainerResponse toCardsContainerDto(List<Card> cards) {
-//        List<CardResponseDto> cardDtos = cards.stream()
-//                .map(this::toDto)
-//                .toList();
-//
-//        return new CardsContainerResponse(cardDtos, cardDtos.size());
-//    }
 }

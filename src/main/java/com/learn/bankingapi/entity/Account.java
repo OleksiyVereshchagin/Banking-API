@@ -103,12 +103,4 @@ public class Account {
     public void setUser(User user) {
         this.user = user;
     }
-
-    public List<Card> getCards() {
-        return cards;
-    }
-
-    public void setCards(List<Card> cards) {
-        this.cards = cards;
-    }
 }

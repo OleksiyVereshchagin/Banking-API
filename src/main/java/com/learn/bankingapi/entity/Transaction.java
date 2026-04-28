@@ -8,6 +8,16 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+
+/**
+ * Represents a financial transaction within the system.
+ *
+ * Idempotency Logic:
+ * The table uses a unique constraint on {@code (user_id, idempotency_key)} to prevent
+ * duplicate transaction processing. If a client sends the same request multiple times
+ * (e.g., due to network retry), the database ensures only one record is created,
+ * maintaining financial integrity.
+ */
 @Entity
 @Table(
         name = "transactions",
@@ -21,50 +31,39 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 💰 сума
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
-    // 💸 комісія (опціонально)
     @Column(precision = 19, scale = 4)
     private BigDecimal commission;
 
-    // 🔄 тип операції
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TransactionType type;
 
-    // 📊 статус
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TransactionStatus status = TransactionStatus.PENDING;
 
-    // 🔐 idempotency key (БЕЗ unique=true)
     @Column(name = "idempotency_key", nullable = false)
     private String idempotencyKey;
 
-    // 👤 user (для idempotency)
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    // 💱 валюта
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Currency currency;
 
-    // 📝 повідомлення (для FAILED і т.д.)
     private String message;
 
-    // ⏱ час створення
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // ⬅️ звідки
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "from_account_id")
     private Account fromAccount;
 
-    // ➡️ куди
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "to_account_id")
     private Account toAccount;
