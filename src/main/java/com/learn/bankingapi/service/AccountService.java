@@ -31,6 +31,8 @@ public class AccountService {
     private final AccountMapper accountMapper;
     private final AccountRepository accountRepository;
 
+    private static final int MAX_IBAN_ATTEMPTS = 15;
+
     public AccountService(CurrentUserProvider currentUser, IBANGenerator ibanGenerator, AccountMapper accountMapper, AccountRepository accountRepository) {
         this.currentUser = currentUser;
         this.ibanGenerator = ibanGenerator;
@@ -38,147 +40,145 @@ public class AccountService {
         this.accountRepository = accountRepository;
     }
 
-    public AccountResponse createAccount(CreateAccountRequest request){
-        if (request.currency() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency is required");
-        }
-
+    /**
+     * Creates a new account for the current user with the provided details.
+     *
+     * @param request the request object containing details for the new account, such as currency
+     * @return an AccountResponse object containing details of the newly created account
+     * @throws ResponseStatusException with:
+     *         - 422 UNPROCESSABLE_ENTITY if the system fails to generate a unique IBAN
+     *           after several attempts
+     */
+    public AccountResponse createAccount(CreateAccountRequest request) {
         User user = currentUser.getCurrentUser();
-        Account account = new Account();
 
+        String iban = generateUniqueIban();
+
+        Account account = new Account();
         account.setCurrency(request.currency());
         account.setStatus(AccountStatus.ACTIVE);
         account.setUser(user);
-
-        String iban;
-        int attempts = 0;
-        do {
-            if (attempts++ > 5) {
-                throw new IllegalStateException("Failed to generate unique IBAN");
-            }
-            iban = ibanGenerator.generate();
-        } while (accountRepository.existsByIban(iban));
-
         account.setIban(iban);
 
         return accountMapper.toDto(accountRepository.save(account));
     }
 
-    public AccountContainerResponse getAccounts(){
+
+    /**
+     * Retrieves a container of account responses associated with the currently logged-in user.
+     *
+     * @return an AccountContainerResponse containing a list of account responses for the current user.
+     */
+    public AccountContainerResponse getAccounts() {
         User user = currentUser.getCurrentUser();
 
-        List<Account> accounts = accountRepository.findAllByUser(user);
-
-        List <AccountResponse> accountResponseList = accounts
+        List<AccountResponse> accountResponses = accountRepository.findAllByUser(user)
                 .stream()
                 .map(accountMapper::toDto)
                 .toList();
 
-        return new AccountContainerResponse(accountResponseList);
+        return new AccountContainerResponse(accountResponses);
     }
 
+    /**
+     * Retrieves the account details for the specified account ID associated with the current user.
+     *
+     * @param id the unique identifier of the account to retrieve
+     * @return an AccountResponse object containing the account details
+     * @throws ResponseStatusException with:
+     *         - 404 NOT_FOUND if the account does not exist or the user lacks access to it
+     */
     public AccountResponse getAccountDetails(long id){
         User user = currentUser.getCurrentUser();
 
-        Account account = accountRepository.findAccountByIdAndUser(id, user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        Account account = findAccountForUser(id, user);
 
         return accountMapper.toDto(account);
     }
 
+    /**
+     * Updates the status of an account for the currently logged-in user.
+     *
+     * @param id The unique identifier of the account to update.
+     * @param request The request object containing the new account status.
+     * @return An AccountEditStatusResponse object representing the result of the update operation.
+     * @throws ResponseStatusException with:
+     *         - 404 NOT_FOUND if the account does not exist or access is denied
+     *         - 400 BAD_REQUEST if:
+     *           - the account is already CLOSED
+     *           - the new status is the same as current
+     *           - trying to transition to ACTIVE status
+     *           - trying to close an account with a non-zero balance
+     *         - 403 FORBIDDEN if:
+     *           - a regular USER tries to do anything other than CLOSE the account
+     *           - an ADMIN tries to set a status other than BLOCKED or CLOSED
+     */
     public AccountEditStatusResponse updateAccountStatus(long id, UpdateAccountStatusRequest request) {
-
         User user = currentUser.getCurrentUser();
-        UserRole role = user.getRole();
-        if (role == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "User role is not defined"
-            );
-        }
+        Account account = findAccountForUser(id, user);
 
-        Account account;
-        if (role == UserRole.ADMIN) {
-            account = accountRepository.findById(id)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Account not found"
-                    ));
-        } else {
-            account = accountRepository.findAccountByIdAndUser(id, user)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Account not found"
-                    ));
-        }
+        validateStatusChange(account, request.status(), user.getRole());
 
+        account.setStatus(request.status());
+        accountRepository.save(account);
+
+        return accountMapper.toStatusUpdateDto(account, LocalDateTime.now());
+    }
+
+    // Helper Methods
+
+    private Account findAccountForUser(long id, User user) {
+        if (user.getRole() == UserRole.ADMIN) {
+            return accountRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+        }
+        return accountRepository.findAccountByIdAndUser(id, user)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found or access denied"));
+    }
+
+    private void validateStatusChange(Account account, AccountStatus newStatus, UserRole role) {
         if (account.getStatus() == AccountStatus.CLOSED) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Account is CLOSED and cannot be modified"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is CLOSED and cannot be modified");
         }
-
-        if (request.status() == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Status is required"
-            );
-        }
-        AccountStatus newStatus = request.status();
 
         if (account.getStatus() == newStatus) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "New status must be different from the current status"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New status must be different");
         }
 
         if (newStatus == AccountStatus.ACTIVE) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Transition to ACTIVE status is not allowed"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transition to ACTIVE is not allowed");
         }
 
-        switch (role) {
-
-            case USER -> {
-                if (newStatus != AccountStatus.CLOSED) {
-                    throw new ResponseStatusException(
-                            HttpStatus.FORBIDDEN,
-                            "You do not have permission to perform this status change"
-                    );
-                }
-
-                if (account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "Account balance must be zero to close the account"
-                    );
-                }
-
-                account.setStatus(AccountStatus.CLOSED);
-            }
-
-            case ADMIN -> {
-                if (newStatus != AccountStatus.BLOCKED && newStatus != AccountStatus.CLOSED) {
-                    throw new ResponseStatusException(
-                            HttpStatus.FORBIDDEN,
-                            "Admins can only block or close accounts"
-                    );
-                }
-
-                account.setStatus(newStatus);
-            }
-
-            default -> throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Role is not allowed to change account status"
-            );
+        if (role == UserRole.USER) {
+            validateUserPermissions(account, newStatus);
+        } else if (role == UserRole.ADMIN) {
+            validateAdminPermissions(newStatus);
         }
+    }
 
-        accountRepository.save(account);
-        return accountMapper.toStatusUpdateDto(account, LocalDateTime.now());
+    private void validateUserPermissions(Account account, AccountStatus newStatus) {
+        if (newStatus != AccountStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Users can only CLOSE their accounts");
+        }
+        if (account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Balance must be zero to close account");
+        }
+    }
+
+    private void validateAdminPermissions(AccountStatus newStatus) {
+        if (newStatus != AccountStatus.BLOCKED && newStatus != AccountStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admins can only block or close accounts");
+        }
+    }
+
+    private String generateUniqueIban() {
+        String iban;
+        int attempts = 0;
+        do {
+            if (attempts++ > MAX_IBAN_ATTEMPTS) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Could not generate unique IBAN, please try again");            }
+            iban = ibanGenerator.generate();
+        } while (accountRepository.existsByIban(iban));
+        return iban;
     }
 }

@@ -40,14 +40,14 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.refreshTokenRepository = refreshTokenRepository;
     }
-    
 
     /**
      * Registers a new user based on the provided registration details.
      *
      * @param request The registration request containing user details.
      * @return An authentication response containing a generated token for the newly registered user.
-     * @throws ResponseStatusException if a user with the given login already exists.
+     * @throws ResponseStatusException with:
+     *         - 409 CONFLICT if a user with the given login (email or phone) already exists
      */
     public AuthResponse registration(RegisterRequest request) {
         String login = request.login();
@@ -71,6 +71,8 @@ public class AuthService {
      *                including the login (username or email) and password.
      * @return an {@code AuthLoginResponse} containing the access token and refresh token
      *         for the authenticated user.
+     * @throws org.springframework.security.core.AuthenticationException if authentication fails
+     *         (invalid credentials, locked account, etc.), typically resulting in a 401 UNAUTHORIZED response
      */
     public AuthLoginResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
@@ -96,7 +98,10 @@ public class AuthService {
      *
      * @param requestToken the refresh token provided by the client
      * @return an {@link AuthResponse} containing the new access token
-     * @throws ResponseStatusException if the refresh token is invalid, expired, or not found in the database
+     * @throws ResponseStatusException with:
+     *         - 403 FORBIDDEN if the refresh token is:
+     *           - not found in the database
+     *           - expired (in this case, the token is also deleted from the database)
      */
     public AuthResponse refreshToken(String requestToken) {
         Optional<RefreshToken> tokenOptional = refreshTokenRepository.findByToken(requestToken);

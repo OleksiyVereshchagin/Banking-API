@@ -22,7 +22,6 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Autowired
     public UserService(CurrentUserProvider userProvider, UserMapper userMapper, UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userProvider = userProvider;
         this.userMapper = userMapper;
@@ -30,94 +29,77 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * Retrieves the profile details of the currently authenticated user.
+     *
+     * @return A {@code UserResponse} object containing the user's profile information.
+     * @throws ResponseStatusException with 401 UNAUTHORIZED if the user is not authenticated
+     */
     public UserResponse getUserProfile(){
         User user = userProvider.getCurrentUser();
         return userMapper.toDto(user);
     }
 
-
+    /**
+     * Updates the user profile with the provided fields.
+     *
+     * @param dto The request object containing updated profile fields.
+     * @return A {@code UserResponse} object representing the updated profile.
+     * @throws ResponseStatusException with:
+     *         - 400 BAD_REQUEST if all fields in the DTO are null (at least one field is required)
+     *         - 401 UNAUTHORIZED if the user is not authenticated
+     */
     public UserResponse updateUserProfile(UpdateUserProfile dto) {
-
-        if (
-                dto.firstName() == null &&
-                        dto.lastName() == null &&
-                        dto.middleName() == null &&
-                        dto.dateOfBirth() == null
-        ) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    " At least one field must be provided"
-            );
-        }
-
+        validateAtLeastOneFieldPresent(dto);
         User user = userProvider.getCurrentUser();
 
-        if (dto.firstName() != null) {
-            if (dto.firstName().isBlank()) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "First name cannot be blank"
-                );
-            }
-            user.setFirstName(dto.firstName());
-        }
-
-        if (dto.lastName() != null) {
-            if (dto.lastName().isBlank()) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Last name cannot be blank"
-                );
-            }
-            user.setLastName(dto.lastName());
-        }
-
-        if (dto.middleName() != null) {
-            user.setMiddleName(dto.middleName());
-        }
-
-        if (dto.dateOfBirth() != null) {
-            user.setDateOfBirth(dto.dateOfBirth());
-        }
+        applyDtoToUser(dto, user);
 
         userRepository.save(user);
-
         return userMapper.toDto(user);
     }
 
-    public void updateUserPassword(UpdateUserPassword updateUserPassword){
+    /**
+     * Changes the user's password after verifying the current password and ensuring uniqueness.
+     *
+     * @param dto The request object containing the current and new passwords.
+     * @throws ResponseStatusException with:
+     *         - 400 BAD_REQUEST if:
+     *           - the new password is the same as the current password
+     *           - the provided current password does not match the stored password
+     *         - 401 UNAUTHORIZED if the user is not authenticated
+     */
+    public void updateUserPassword(UpdateUserPassword dto) {
         User user = userProvider.getCurrentUser();
 
-        if(updateUserPassword.currentPassword().equals(updateUserPassword.newPassword())){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "New password must be different from current password"
-            );
+        // 1. Check if the new password is not the same as the old one (security best practice)
+        if (passwordEncoder.matches(dto.newPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be different from current password");
         }
 
-        if(!passwordEncoder.matches(updateUserPassword.currentPassword(), user.getPassword())){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid current password"
-            );
+        // 2. Verify current password
+        if (!passwordEncoder.matches(dto.currentPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid current password");
         }
 
-        user.setPassword(passwordEncoder.encode(updateUserPassword.newPassword()));
+        user.setPassword(passwordEncoder.encode(dto.newPassword()));
         userRepository.save(user);
     }
 
-    public void updateUserFromDto(UpdateUserProfile dto, User user){
-        if(dto.firstName() != null){
-            user.setFirstName(dto.firstName());
-        }
-        if(dto.lastName() != null){
-            user.setLastName(dto.lastName());
-        }
-        if(dto.middleName() != null){
-            user.setMiddleName(dto.middleName());
-        }
-        if(dto.dateOfBirth() != null){
-            user.setDateOfBirth(dto.dateOfBirth());
+    // Helper Methods
+
+    private void validateAtLeastOneFieldPresent(UpdateUserProfile dto) {
+        if (dto.firstName() == null && dto.lastName() == null &&
+                dto.middleName() == null && dto.dateOfBirth() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one field must be provided for update");
         }
     }
+
+    private void applyDtoToUser(UpdateUserProfile dto, User user) {
+        if (dto.firstName() != null) user.setFirstName(dto.firstName());
+        if (dto.lastName() != null) user.setLastName(dto.lastName());
+        if (dto.middleName() != null) user.setMiddleName(dto.middleName());
+        if (dto.dateOfBirth() != null) user.setDateOfBirth(dto.dateOfBirth());
+    }
+
 }

@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.security.Key;
 import java.util.Date;
 
-// getEmail? шо на рахунок номера телефону
 
 @Service
 public class JwtService {

@@ -50,35 +50,6 @@ public class TransactionLogger {
         return transactionalRepository.saveAndFlush(transaction);
     }
 
-
-//    @Transactional(propagation = REQUIRES_NEW)
-//    public Transaction createPending(
-//            Account source,
-//            Account target,
-//            CreateTransactionRequest request,
-//            String idempotencyKey
-//    ) {
-//        Transaction transaction = new Transaction();
-//
-//        transaction.setType(request.type());
-//        transaction.setAmount(request.amount());
-//        transaction.setIdempotencyKey(idempotencyKey);
-//        transaction.setCommission(BigDecimal.ZERO);
-//        transaction.setStatus(TransactionStatus.PENDING);
-//
-//        // accounts (can be null depending on type)
-//        transaction.setFromAccount(source);
-//        transaction.setToAccount(target);
-//
-//        // currency (strict + safe)
-//        transaction.setCurrency(resolveCurrencyOrThrow(source, target, request.type()));
-//
-//        // user (strict + safe)
-//        transaction.setUserId(resolveUserIdOrThrow(source, target, request.type()));
-//
-//        return transactionalRepository.saveAndFlush(transaction);
-//    }
-
     @Transactional(propagation = REQUIRES_NEW)
     public void markAsCompleted(long id) {
         transactionalRepository.updateStatus(id, TransactionStatus.COMPLETED, null);

@@ -19,6 +19,18 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
 
+    /**
+     * Loads a user by their login identifier (email or phone number).
+     *
+     * Logic flow:
+     * 1. Attempt to find the user by email (case-insensitive).
+     * 2. If not found, attempt to find the user by phone number.
+     * 3. If still not found, throw a {@link UsernameNotFoundException}.
+     *
+     * @param login the identifier used for authentication (can be email or phone number)
+     * @return a {@link CustomUserDetails} object containing the authenticated user's data
+     * @throws UsernameNotFoundException if no user is found with the provided email or phone number
+     */
     @Override
     public UserDetails loadUserByUsername(String login) throws UsernameNotFoundException {
 
