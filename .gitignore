@@ -34,3 +34,5 @@ build/
 
 # Secrets
 .env
+
+src/main/resources/application.properties
