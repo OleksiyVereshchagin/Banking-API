@@ -99,7 +99,6 @@ public class GlobalExceptionHandler {
             io.jsonwebtoken.MalformedJwtException.class
     })
     public ResponseEntity<ExceptionResponse> handleJwtErrors(Exception ex) {
-
         return new ResponseEntity<>(
                 ExceptionResponse.error(
                         HttpStatus.UNAUTHORIZED.value(),

@@ -10,7 +10,6 @@ import java.lang.annotation.*;
 @Target({ ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ValidLogin {
-
     String message() default "Login must be valid email or phone number";
 
     Class<?>[] groups() default {};
