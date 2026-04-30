@@ -20,7 +20,7 @@ public class IBANGenerator {
 
     public String generate() {
         String accountNumber = ACCOUNT_TYPE +
-                String.format("%011d", ThreadLocalRandom.current().nextLong(0, 1_000_000_00000L));
+                String.format("%015d", ThreadLocalRandom.current().nextLong(0, 1_000_000_000_000_000L));
 
         String checkString = MFO + accountNumber + convertCountryCode(COUNTRY_CODE) + "00";
 
