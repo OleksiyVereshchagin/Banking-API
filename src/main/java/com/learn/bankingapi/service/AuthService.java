@@ -1,6 +1,7 @@
 package com.learn.bankingapi.service;
 
 import com.learn.bankingapi.details.CustomUserDetails;
+import com.learn.bankingapi.dto.response.auth.RegistrationResponse;
 import com.learn.bankingapi.entity.RefreshToken;
 import com.learn.bankingapi.entity.User;
 import com.learn.bankingapi.dto.response.auth.AuthLoginResponse;
@@ -8,6 +9,7 @@ import com.learn.bankingapi.dto.response.auth.AuthResponse;
 import com.learn.bankingapi.enums.UserRole;
 import com.learn.bankingapi.dto.request.auth.LoginRequest;
 import com.learn.bankingapi.dto.request.auth.RegisterRequest;
+import com.learn.bankingapi.enums.VerificationType;
 import com.learn.bankingapi.repository.RefreshTokenRepository;
 import com.learn.bankingapi.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -32,13 +34,15 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final VerificationService verificationService;
 
-    public AuthService(PasswordEncoder passwordEncoder, UserRepository userRepository, JwtService jwtService, AuthenticationManager authenticationManager, RefreshTokenRepository refreshTokenRepository) {
+    public AuthService(PasswordEncoder passwordEncoder, UserRepository userRepository, JwtService jwtService, AuthenticationManager authenticationManager, RefreshTokenRepository refreshTokenRepository, VerificationService verificationService) {
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.verificationService = verificationService;
     }
 
     /**
@@ -49,7 +53,7 @@ public class AuthService {
      * @throws ResponseStatusException with:
      *         - 409 CONFLICT if a user with the given login (email or phone) already exists
      */
-    public AuthResponse registration(RegisterRequest request) {
+    public RegistrationResponse registration(RegisterRequest request) {
         String login = request.login();
 
         if (isUserExists(login)) {
@@ -59,7 +63,14 @@ public class AuthService {
         User user = createNewUser(request);
         userRepository.save(user);
 
-        return new AuthResponse(jwtService.generateToken(user));
+        String message;
+        if (login.contains("@")) {
+            message = "Verification code has been sent to your email address";
+            verificationService.sendVerificationCode(user, login, VerificationType.EMAIL);
+        } else {
+            message = "Verification code has been sent via text message to your phone number";}
+
+        return new RegistrationResponse(message);
     }
 
 

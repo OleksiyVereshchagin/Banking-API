@@ -1,33 +1,30 @@
 package com.learn.bankingapi.controller;
 
 import com.learn.bankingapi.controller.openapi.AuthApi;
-import com.learn.bankingapi.dto.request.auth.RefreshTokenRequest;
+import com.learn.bankingapi.dto.request.auth.*;
 import com.learn.bankingapi.dto.response.auth.AuthLoginResponse;
 import com.learn.bankingapi.dto.response.auth.AuthResponse;
-import com.learn.bankingapi.dto.request.auth.LoginRequest;
-import com.learn.bankingapi.dto.request.auth.RegisterRequest;
+import com.learn.bankingapi.dto.response.auth.RegistrationResponse;
 import com.learn.bankingapi.service.AuthService;
+import com.learn.bankingapi.service.VerificationService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController implements AuthApi {
 
     private final AuthService authService;
+    private final VerificationService verificationService;
 
-    @Autowired
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, VerificationService verificationService) {
         this.authService = authService;
+        this.verificationService = verificationService;
     }
 
     @PostMapping("/register")
     @Override
-    public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
+    public RegistrationResponse register(@Valid @RequestBody RegisterRequest request) {
         return authService.registration(request);
     }
 
@@ -41,5 +38,15 @@ public class AuthController implements AuthApi {
     @Override
     public AuthResponse refreshToken(@RequestBody RefreshTokenRequest token) {
         return authService.refreshToken(token.refreshToken());
+    }
+
+    @PostMapping("/verify")
+    public AuthResponse verify(@RequestBody VerifyRequest request) {
+        return verificationService.verify(request);
+    }
+
+    @PostMapping("/resend-verefication")
+    public void resendVerefication(@RequestBody ResendRequest request) {
+        verificationService.resend(request);
     }
 }

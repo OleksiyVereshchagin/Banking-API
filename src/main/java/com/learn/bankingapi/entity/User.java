@@ -36,6 +36,12 @@ public class User {
     @Column(name = "date_of_birth", nullable = false)
     private LocalDate dateOfBirth;
 
+    @Column(name = "email_verified")
+    private boolean emailVerified;
+
+    @Column(name = "phone_verified")
+    private boolean phoneVerified;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role")
     private UserRole role;
@@ -113,5 +119,21 @@ public class User {
 
     public void setRole(UserRole role) {
         this.role = role;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public boolean isPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(boolean phoneVerified) {
+        this.phoneVerified = phoneVerified;
     }
 }

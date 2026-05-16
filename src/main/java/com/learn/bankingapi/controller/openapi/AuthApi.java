@@ -6,6 +6,7 @@ import com.learn.bankingapi.dto.response.auth.AuthLoginResponse;
 import com.learn.bankingapi.dto.response.auth.AuthResponse;
 import com.learn.bankingapi.dto.request.auth.LoginRequest;
 import com.learn.bankingapi.dto.request.auth.RegisterRequest;
+import com.learn.bankingapi.dto.response.auth.RegistrationResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -28,7 +29,7 @@ public interface AuthApi {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = ExceptionResponse.class),
                     examples = @ExampleObject(value = "{\"status\": 422, \"message\": \"password: Password must be at least 8 characters\", \"timestamp\": \"2024-05-20T10:00:00\"}")))
-    AuthResponse register(@Valid @RequestBody RegisterRequest request);
+    RegistrationResponse register(@Valid @RequestBody RegisterRequest request);
 
     @Operation(summary = "User login", description = "Authenticates a user and returns access and refresh tokens")
     @ApiResponse(responseCode = "200", description = "Successfully authenticated")
